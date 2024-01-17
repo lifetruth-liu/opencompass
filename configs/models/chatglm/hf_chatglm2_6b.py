@@ -15,6 +15,7 @@ models = [
            padding_side='left',
            truncation_side='left',
            trust_remote_code=True,
+            use_fast=False,
         ),
         max_out_len=100,
         max_seq_len=4096,
