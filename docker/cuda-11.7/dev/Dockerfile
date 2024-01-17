@@ -10,7 +10,7 @@ COPY install-extend.sh /root
 
 RUN cd /root && pip install -r requirements.txt -i $INDEX_URL --trusted-host=$HOST --no-cache-dir && \
     echo 'root:1234566' | chpasswd && \
-    apt-get update && apt-get install -y openssh-server git vim rsync && \
+    apt-get update && apt-get install -y openssh-server vim rsync libncurses5-dev libncursesw5-dev && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config  && \
     bash install-extend.sh && \
     apt-get clean && rm -rf /root/requirements.txt /var/lib/apt/lists/*  /root/install-extend.sh
