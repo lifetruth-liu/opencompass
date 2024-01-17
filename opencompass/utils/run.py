@@ -3,6 +3,7 @@ from typing import List, Union
 
 import tabulate
 from mmengine.config import Config
+from torch.cuda import device_count
 
 from opencompass.datasets.custom import make_custom_dataset_config
 from opencompass.partitioners import NaivePartitioner, SizePartitioner
@@ -47,7 +48,55 @@ def match_cfg_file(workdir: str, pattern: Union[str, List[str]]) -> List[str]:
         raise ValueError(err_msg)
     return files
 
+def extend_cfg(func):
+    import os
+    def _extend(*args, **kwargs):
+        cfg = func(*args, **kwargs)
+        new_gpus = None
+        new_procs = None
 
+        env_gpus = os.getenv("NUM_GPUS")
+        env_procs = os.getenv("NUM_PROCS")
+
+        if env_gpus is not None:
+            if env_gpus == "auto":
+                new_gpus = device_count()
+            else:
+                new_gpus = int(env_gpus)
+
+        if env_procs is not None:
+            if env_procs == "auto":
+                new_procs = new_gpus
+            else:
+                new_procs = int(env_procs)
+
+        for i, model in enumerate(cfg.models):
+            if not hasattr(model, "run_cfg"):
+                model.run_cfg = {}
+            if new_gpus is not None:
+                model.run_cfg["num_gpus"] = new_gpus
+            if new_procs is not None:
+                model.run_cfg["num_procs"] = new_procs
+            cfg.models[i] = model
+
+        use_datasets = list(filter(lambda _: len(_) > 0, map(lambda _: _.lower().strip(), os.getenv("USE_DATASETS", "").split(","))))
+        if len(use_datasets) > 0:
+            datasets = []
+            for dataset in cfg.datasets:
+                for abbr in use_datasets:
+                    if abbr == dataset.abbr or \
+                        f"{abbr}_" in dataset.abbr or \
+                        f"{abbr}-" in dataset.abbr or \
+                        f"_{abbr}" in dataset.abbr or \
+                        f"-{abbr}" in dataset.abbr:
+                        datasets.append(dataset)
+                        continue
+            cfg.datasets = datasets
+            get_logger().info("use datesets:%s" % [_.abbr for _ in datasets])
+        return cfg
+    return _extend
+
+@extend_cfg
 def get_config_from_arg(args) -> Config:
     """Get the config object given args.
 
